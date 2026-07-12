@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware';
 import { tenantContext } from '../middlewares/tenantContext';
+import { requireMembership } from '../middlewares/requireMembership';
 import { getCategories, getProducts, createProduct, createCategory, updateCategory, deleteCategory, updateProduct, deleteProduct } from '../controllers/catalogController';
 
 const router = Router();
@@ -8,8 +9,10 @@ const router = Router();
 // All catalog routes require:
 //   1. a valid Bearer JWT   (authMiddleware)
 //   2. an x-tenant-id header (tenantContext)
+//   3. membership in the tenant (requireMembership)
 router.use(authMiddleware);
 router.use(tenantContext);
+router.use(requireMembership);
 
 // GET /api/v1/catalog/categories
 router.get('/categories', getCategories);
