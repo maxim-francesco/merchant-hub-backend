@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id          String         @id @default(uuid())
+  name        String
+  slug        String         @unique
+  settings    Json?          // Payment gateway configs, B2B/B2C billing preferences
+  members     TenantMember[]
+  categories  Category[]
+  products    Product[]
+  orders      Order[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String
+  globalRole   String         @default("USER") // "SUPER_ADMIN" or "USER"
+  memberships  TenantMember[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model TenantMember {
+  id       String @id @default(uuid())
+  userId   String
+  tenantId String
+  role     String @default("ADMIN") // "OWNER", "ADMIN", "STAFF"
+  
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+}
+
+model Category {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  name               String
+  slug               String
+  expectedAttributes String[]  @default([])
+  
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products           Product[]
+
+  @@unique([tenantId, slug])
+}
+
+model Product {
+  id         String   @id @default(uuid())
+  tenantId   String
+  categoryId String
+  name       String
+  slug       String
+  price      Decimal  @db.Decimal(10, 2)
+  attributes Json     // Dynamic custom attributes via JSONB
+  
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, slug])
+}
+
+
+model Order {
+  id            String      @id @default(uuid())
+  tenantId      String
+  customerName  String
+  customerEmail String
+  totalAmount   Decimal     @db.Decimal(10, 2)
+  status        String      @default("PENDING") // PENDING, PAID, SHIPPED, CANCELLED
+  items         OrderItem[]
+  
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2) // Locked price at the time of purchase
+  
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+}
