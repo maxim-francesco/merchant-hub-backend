@@ -25,6 +25,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({
       status: 'error',
+      code: 'UNAUTHORIZED',
       message: 'Unauthorized: Missing or malformed Authorization header.',
     });
     return;
@@ -37,6 +38,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     // Guard against missing env var — this is a server misconfiguration
     res.status(500).json({
       status: 'error',
+      code: 'INTERNAL_ERROR',
       message: 'Server misconfiguration: JWT secret not set.',
     });
     return;
@@ -49,6 +51,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   } catch {
     res.status(401).json({
       status: 'error',
+      code: 'UNAUTHORIZED',
       message: 'Unauthorized: Invalid or expired token.',
     });
   }

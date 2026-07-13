@@ -18,6 +18,7 @@ export function errorHandler(
     if (err.code === 'P2002') {
       res.status(409).json({
         status: 'error',
+        code: 'DUPLICATE_RECORD',
         message: 'A record with this slug already exists in this workspace.',
       });
       return;
@@ -25,6 +26,7 @@ export function errorHandler(
     if (err.code === 'P2025') {
       res.status(404).json({
         status: 'error',
+        code: 'RECORD_NOT_FOUND',
         message: 'Record not found.',
       });
       return;
@@ -32,6 +34,7 @@ export function errorHandler(
     if (err.code === 'P2003') {
       res.status(409).json({
         status: 'error',
+        code: 'RECORD_REFERENCED',
         message: 'Operation blocked: the record is referenced by other data.',
       });
       return;
@@ -46,6 +49,7 @@ export function errorHandler(
 
   res.status(statusCode).json({
     status: 'error',
+    code: 'INTERNAL_ERROR',
     message: isProd && statusCode === 500 ? 'An internal server error occurred.' : err.message,
     ...(isProd ? {} : { stack: err.stack }),
   });

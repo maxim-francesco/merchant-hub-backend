@@ -18,6 +18,7 @@ export async function requireMembership(req: Request, res: Response, next: NextF
   if (!userId || !tenantId) {
     res.status(500).json({
       status: 'error',
+      code: 'INTERNAL_ERROR',
       message: 'Middleware misconfiguration: user or tenant context missing.',
     });
     return;
@@ -42,6 +43,7 @@ export async function requireMembership(req: Request, res: Response, next: NextF
     if (!membership) {
       res.status(403).json({
         status: 'error',
+        code: 'FORBIDDEN_NOT_MEMBER',
         message: 'Forbidden: you are not a member of this workspace.',
       });
       return;

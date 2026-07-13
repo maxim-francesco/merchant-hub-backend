@@ -16,6 +16,7 @@ function handleValidationError(parsed: any, res: Response): void {
   const flattenedErrors = parsed.error.flatten().fieldErrors;
   res.status(400).json({
     status: 'error',
+    code: 'VALIDATION_ERROR',
     message: firstIssueMessage,
     issues: flattenedErrors,
   });
@@ -93,6 +94,7 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
   if (!category) {
     res.status(404).json({
       status: 'error',
+      code: 'CATEGORY_NOT_FOUND',
       message: 'Category not found.',
     });
     return;
@@ -223,6 +225,7 @@ export async function updateCategory(req: Request, res: Response): Promise<void>
   if (!existing) {
     res.status(404).json({
       status: 'error',
+      code: 'CATEGORY_NOT_FOUND',
       message: 'Category not found.',
     });
     return;
@@ -264,6 +267,7 @@ export async function deleteCategory(req: Request, res: Response): Promise<void>
   if (!category) {
     res.status(404).json({
       status: 'error',
+      code: 'CATEGORY_NOT_FOUND',
       message: 'Category not found.',
     });
     return;
@@ -277,6 +281,7 @@ export async function deleteCategory(req: Request, res: Response): Promise<void>
   if (productCount > 0) {
     res.status(400).json({
       status: 'error',
+      code: 'CATEGORY_HAS_PRODUCTS',
       message: 'Cannot delete category because it contains products. Reassign or delete those products first.',
     });
     return;
@@ -313,6 +318,7 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
   if (!existing) {
     res.status(404).json({
       status: 'error',
+      code: 'PRODUCT_NOT_FOUND',
       message: 'Product not found.',
     });
     return;
@@ -326,6 +332,7 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
   if (!category) {
     res.status(404).json({
       status: 'error',
+      code: 'CATEGORY_NOT_FOUND',
       message: 'Category not found.',
     });
     return;
@@ -380,6 +387,7 @@ export async function deleteProduct(req: Request, res: Response): Promise<void> 
   if (!product) {
     res.status(404).json({
       status: 'error',
+      code: 'PRODUCT_NOT_FOUND',
       message: 'Product not found.',
     });
     return;
@@ -388,6 +396,7 @@ export async function deleteProduct(req: Request, res: Response): Promise<void> 
   if (product._count.orderItems > 0) {
     res.status(400).json({
       status: 'error',
+      code: 'PRODUCT_HAS_ORDERS',
       message: 'Cannot delete product because it has been ordered in transaction history.',
     });
     return;

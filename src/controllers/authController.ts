@@ -19,6 +19,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   if (!parsed.success) {
     res.status(400).json({
       status: 'error',
+      code: 'VALIDATION_ERROR',
       message: 'Validation failed',
       errors: parsed.error.flatten().fieldErrors,
     });
@@ -42,6 +43,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   if (!user) {
     res.status(401).json({
       status: 'error',
+      code: 'INVALID_CREDENTIALS',
       message: 'Invalid email or password.',
     });
     return;
@@ -52,6 +54,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   if (!isPasswordValid) {
     res.status(401).json({
       status: 'error',
+      code: 'INVALID_CREDENTIALS',
       message: 'Invalid email or password.',
     });
     return;
