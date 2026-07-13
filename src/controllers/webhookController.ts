@@ -10,6 +10,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
   if (!tenantId || typeof tenantId !== 'string') {
     res.status(400).json({
       status: 'error',
+      code: 'INVALID_TENANT_ID',
       message: 'Tenant ID is required and must be a string.',
     });
     return;
@@ -24,6 +25,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
     if (!tenant) {
       res.status(404).json({
         status: 'error',
+        code: 'TENANT_NOT_FOUND',
         message: 'Tenant not found.',
       });
       return;
@@ -35,6 +37,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
     if (!webhookSecret) {
       res.status(400).json({
         status: 'error',
+        code: 'WEBHOOK_NOT_CONFIGURED',
         message: 'Store payment webhook not configured.',
       });
       return;
@@ -48,12 +51,21 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
 
     // 3. Signature verification (support offline mock fallback)
     if (webhookSecret.startsWith('whsec_test_mock')) {
+      if (process.env.NODE_ENV === 'production') {
+        res.status(400).json({
+          status: 'error',
+          code: 'WEBHOOK_MOCK_DISABLED',
+          message: 'Mock webhook mode is disabled in production.',
+        });
+        return;
+      }
       // Mock mode
       try {
         event = JSON.parse(bodyString);
       } catch (err: any) {
         res.status(400).json({
           status: 'error',
+          code: 'WEBHOOK_MOCK_PARSE_FAILED',
           message: `Mock signature parsing failed: ${err.message}`,
         });
         return;
@@ -62,6 +74,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
       if (!signature) {
         res.status(400).json({
           status: 'error',
+          code: 'WEBHOOK_SIGNATURE_INVALID',
           message: 'Missing stripe-signature header.',
         });
         return;
@@ -71,6 +84,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
       } catch (err: any) {
         res.status(400).json({
           status: 'error',
+          code: 'WEBHOOK_SIGNATURE_INVALID',
           message: `Webhook signature verification failed: ${err.message}`,
         });
         return;
@@ -121,6 +135,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
   } catch (error: any) {
     res.status(500).json({
       status: 'error',
+      code: 'WEBHOOK_ERROR',
       message: error.message || 'Webhook processing failed.',
     });
   }

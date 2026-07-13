@@ -1,18 +1,30 @@
 import type { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
+import { AppError } from '../utils/AppError';
 
-interface AppError extends Error {
+interface CustomError extends Error {
   statusCode?: number;
   status?: string;
+  code?: string;
 }
 
 export function errorHandler(
-  err: AppError,
+  err: CustomError,
   _req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction,
 ): void {
+  // Centralized Custom Application Error Mapping
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({
+      status: 'error',
+      code: err.code,
+      message: err.message,
+    });
+    return;
+  }
+
   // Centralized Prisma Error Mapping
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
