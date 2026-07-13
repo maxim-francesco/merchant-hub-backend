@@ -91,7 +91,7 @@ export async function processCheckout(req: Request, res: Response): Promise<void
     return;
   }
 
-  const { customerName, customerEmail, items } = parsed.data;
+  const { customerName, customerEmail, items, customerType, companyName, cui, regCom } = parsed.data;
 
   // 1. Fetch Tenant to verify Stripe payment settings
   const tenant = await prisma.tenant.findUnique({
@@ -160,6 +160,10 @@ export async function processCheckout(req: Request, res: Response): Promise<void
         customerEmail,
         totalAmount: calculatedTotal,
         status: 'PENDING',
+        customerType,
+        companyName: customerType === 'B2B' ? (companyName || null) : null,
+        cui: customerType === 'B2B' ? (cui || null) : null,
+        regCom: customerType === 'B2B' ? (regCom || null) : null,
         items: {
           create: orderItemsData.map((oi) => ({
             productId: oi.productId,

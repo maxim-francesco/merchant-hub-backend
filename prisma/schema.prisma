@@ -81,6 +81,10 @@ model Order {
   customerEmail String
   totalAmount   Decimal     @db.Decimal(10, 2)
   status        String      @default("PENDING") // PENDING, PAID, SHIPPED, CANCELLED
+  customerType  String      @default("B2C")
+  companyName   String?
+  cui           String?
+  regCom        String?
   items         OrderItem[]
   
   tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)

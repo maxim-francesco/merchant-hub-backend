@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { prisma } from '../utils/prismaClient';
 import { createOrderSchema } from '../validation/orderSchemas';
 import { AppError } from '../utils/AppError';
+import { z } from 'zod';
 
 // ── GET /api/v1/orders ────────────────────────────────────────────────────────
 export async function getOrders(req: Request, res: Response): Promise<void> {
@@ -49,7 +50,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { customerName, customerEmail, items } = parsed.data;
+  const { customerName, customerEmail, items, customerType, companyName, cui, regCom } = parsed.data;
 
   // Execute everything in a safe database transaction
   const result = await prisma.$transaction(async (tx) => {
@@ -104,6 +105,10 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         customerName,
         customerEmail,
         totalAmount: calculatedTotal,
+        customerType,
+        companyName: customerType === 'B2B' ? (companyName || null) : null,
+        cui: customerType === 'B2B' ? (cui || null) : null,
+        regCom: customerType === 'B2B' ? (regCom || null) : null,
         items: {
           create: orderItemsData.map((oi) => ({
             productId: oi.productId,
@@ -135,3 +140,69 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     data: { order: result },
   });
 }
+
+// ── PATCH /api/v1/orders/:id/status ──────────────────────────────────────────
+const ORDER_STATUSES = ['PENDING', 'PAID', 'SHIPPED', 'CANCELLED'] as const;
+
+const statusUpdateSchema = z.object({
+  status: z.enum(ORDER_STATUSES),
+});
+
+export async function updateOrderStatus(req: Request, res: Response): Promise<void> {
+  const tenantId = req.tenantId!; // guaranteed by tenantContext middleware
+  const { id } = req.params;
+
+  if (!id || typeof id !== 'string') {
+    throw new AppError(400, 'INVALID_ORDER_ID', 'Invalid order ID parameter.');
+  }
+
+  const parsed = statusUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      status: 'error',
+      code: 'INVALID_ORDER_STATUS',
+      message: parsed.error.issues[0]?.message || 'Invalid order status value.',
+    });
+    return;
+  }
+
+  const { status } = parsed.data;
+
+  // 1. Verify the order exists and belongs to the tenant
+  const order = await prisma.order.findFirst({
+    where: {
+      id,
+      tenantId,
+    },
+  });
+
+  if (!order) {
+    throw new AppError(404, 'ORDER_NOT_FOUND', 'Order not found.');
+  }
+
+  // 2. Update status and fetch matching products for return data
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: { status },
+    include: {
+      items: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              price: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: { order: updatedOrder },
+  });
+}
+
