@@ -1,8 +1,10 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../utils/prismaClient';
-import { createOrderSchema } from '../validation/orderSchemas';
+import { createOrderSchema, editOrderSchema } from '../validation/orderSchemas';
 import { AppError } from '../utils/AppError';
 import { z } from 'zod';
+import { ORDER_STATUSES, ALLOWED_TRANSITIONS, EDITABLE_STATUSES } from '../constants/orderStatus';
+import type { OrderStatus } from '../constants/orderStatus';
 
 // ── GET /api/v1/orders ────────────────────────────────────────────────────────
 export async function getOrders(req: Request, res: Response): Promise<void> {
@@ -142,8 +144,6 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 }
 
 // ── PATCH /api/v1/orders/:id/status ──────────────────────────────────────────
-const ORDER_STATUSES = ['PENDING', 'PAID', 'SHIPPED', 'CANCELLED'] as const;
-
 const statusUpdateSchema = z.object({
   status: z.enum(ORDER_STATUSES),
 });
@@ -178,6 +178,23 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
 
   if (!order) {
     throw new AppError(404, 'ORDER_NOT_FOUND', 'Order not found.');
+  }
+
+  const currentStatus = order.status as OrderStatus;
+  const requestedStatus = status as OrderStatus;
+
+  // Gating rules:
+  if (requestedStatus === currentStatus) {
+    throw new AppError(400, 'SAME_STATUS', `Order is already in status ${requestedStatus}.`);
+  }
+
+  const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
+  if (!allowed.includes(requestedStatus)) {
+    throw new AppError(
+      409,
+      'INVALID_STATUS_TRANSITION',
+      `Cannot change status from ${currentStatus} to ${requestedStatus}.`
+    );
   }
 
   // 2. Update status and fetch matching products for return data
@@ -245,5 +262,147 @@ export async function getOrderById(req: Request, res: Response): Promise<void> {
     data: { order },
   });
 }
+
+// ── PUT /api/v1/orders/:id ───────────────────────────────────────────────────
+export async function updateOrder(req: Request, res: Response): Promise<void> {
+  const tenantId = req.tenantId!; // guaranteed by tenantContext middleware
+  const { id } = req.params;
+
+  if (!id || typeof id !== 'string') {
+    throw new AppError(400, 'INVALID_ORDER_ID', 'Invalid order ID parameter.');
+  }
+
+  // 1. Fetch the order matching id and tenantId
+  const order = await prisma.order.findFirst({
+    where: {
+      id,
+      tenantId,
+    },
+  });
+
+  if (!order) {
+    throw new AppError(404, 'ORDER_NOT_FOUND', 'Order not found.');
+  }
+
+  // 2. Gate: if order status not in EDITABLE_STATUSES
+  if (!EDITABLE_STATUSES.includes(order.status as OrderStatus)) {
+    throw new AppError(
+      409,
+      'ORDER_NOT_EDITABLE',
+      `Only pending orders can be edited. This order is ${order.status}.`
+    );
+  }
+
+  // 3. Validate body with editOrderSchema
+  const parsed = editOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const firstIssueMessage = parsed.error.issues[0]?.message || 'Validation failed';
+    const flattenedErrors = parsed.error.flatten().fieldErrors;
+    res.status(400).json({
+      status: 'error',
+      code: 'VALIDATION_ERROR',
+      message: firstIssueMessage,
+      issues: flattenedErrors,
+    });
+    return;
+  }
+
+  const { customerName, customerEmail, items, customerType, companyName, cui, regCom } = parsed.data;
+
+  // Execute updates in a database transaction
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Fetch matching products to get official database prices (prevent price spoofing)
+    const productIds = items.map((item) => item.productId);
+    const dbProducts = await tx.product.findMany({
+      where: {
+        id: { in: productIds },
+        tenantId,
+      },
+    });
+
+    const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+    // 2. Validate products existence and calculate total
+    let calculatedTotal = 0;
+    const orderItemsData = [];
+
+    for (const item of items) {
+      const product = productMap.get(item.productId);
+      if (!product) {
+        throw new AppError(
+          400,
+          'PRODUCT_NOT_FOUND',
+          `Product with ID ${item.productId} not found or belongs to another tenant.`
+        );
+      }
+
+      const qty = item.quantity;
+      if (qty <= 0 || !Number.isInteger(qty)) {
+        throw new AppError(
+          400,
+          'INVALID_QUANTITY',
+          `Invalid quantity for product ${product.name}.`
+        );
+      }
+
+      const priceNum = Number(product.price);
+      calculatedTotal += priceNum * qty;
+
+      orderItemsData.push({
+        productId: product.id,
+        quantity: qty,
+        price: product.price, // Locked price from the database
+      });
+    }
+
+    // 3. Delete existing OrderItems for this order
+    await tx.orderItem.deleteMany({
+      where: { orderId: id },
+    });
+
+    // 4. Update the order fields and recreate items
+    const updatedOrder = await tx.order.update({
+      where: { id },
+      data: {
+        customerName,
+        customerEmail,
+        totalAmount: calculatedTotal,
+        customerType,
+        companyName: customerType === 'B2B' ? (companyName || null) : null,
+        cui: customerType === 'B2B' ? (cui || null) : null,
+        regCom: customerType === 'B2B' ? (regCom || null) : null,
+        items: {
+          create: orderItemsData.map((oi) => ({
+            productId: oi.productId,
+            quantity: oi.quantity,
+            price: oi.price,
+          })),
+        },
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                price: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return updatedOrder;
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: { order: result },
+  });
+}
+
 
 

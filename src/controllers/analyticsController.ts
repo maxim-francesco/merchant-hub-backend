@@ -13,11 +13,11 @@ export async function getDashboardMetrics(req: Request, res: Response): Promise<
       },
     });
 
-    // 2. Calculate Total Revenue (PAID or SHIPPED orders)
+    // 2. Calculate Total Revenue (PAID, SHIPPED or DELIVERED orders)
     const revenueSumResult = await prisma.order.aggregate({
       where: {
         tenantId,
-        status: { in: ['PAID', 'SHIPPED'] },
+        status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] },
       },
       _sum: {
         totalAmount: true,

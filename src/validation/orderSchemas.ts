@@ -80,4 +80,6 @@ export const createOrderSchema = z.object({
 });
 
 export const checkoutSchema = createOrderSchema;
+export const editOrderSchema = createOrderSchema;
+
 
