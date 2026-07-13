@@ -132,3 +132,47 @@ export async function getMyTenants(req: Request, res: Response): Promise<void> {
   }
 }
 
+// ── GET /api/v1/auth/me ──────────────────────────────────────────────────────
+export async function getMe(req: Request, res: Response): Promise<void> {
+  const userId = req.user?.userId;
+
+  if (!userId) {
+    res.status(401).json({
+      status: 'error',
+      message: 'Unauthorized: User context missing.',
+    });
+    return;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        globalRole: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({
+        status: 'error',
+        message: 'User not found.',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { user },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Failed to fetch user.',
+    });
+  }
+}
+
+

@@ -91,12 +91,6 @@ function maskTenant(tenant: any) {
 
 // ── PUT /api/v1/tenants/current ──────────────────────────────────────────────
 const updateTenantSchema = z.object({
-  name: z.string().min(1, 'Name is required').optional(),
-  slug: z
-    .string()
-    .min(1, 'Slug is required')
-    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens only')
-    .optional(),
   settings: z
     .object({
       stripeSecretKey: z
@@ -129,7 +123,7 @@ export async function updateCurrentTenant(req: Request, res: Response): Promise<
     return;
   }
 
-  const { name, slug, settings } = parsed.data;
+  const { settings } = parsed.data;
 
   try {
     const currentTenant = await prisma.tenant.findUnique({
@@ -142,20 +136,6 @@ export async function updateCurrentTenant(req: Request, res: Response): Promise<
         message: 'Tenant not found.',
       });
       return;
-    }
-
-    // Check slug conflict
-    if (slug && slug !== currentTenant.slug) {
-      const slugConflict = await prisma.tenant.findUnique({
-        where: { slug },
-      });
-      if (slugConflict) {
-        res.status(400).json({
-          status: 'error',
-          message: 'Slug is already in use by another store.',
-        });
-        return;
-      }
     }
 
     // Merge settings if present
@@ -175,11 +155,12 @@ export async function updateCurrentTenant(req: Request, res: Response): Promise<
     // Force settings.currency = 'RON' on every update
     mergedSettings[SETTINGS_KEYS.CURRENCY] = 'RON';
 
+    // name and slug are immutable — always keep the current values
     const updatedTenant = await prisma.tenant.update({
       where: { id: tenantId },
       data: {
-        name: name ?? currentTenant.name,
-        slug: slug ?? currentTenant.slug,
+        name: currentTenant.name,
+        slug: currentTenant.slug,
         settings: mergedSettings,
       },
     });
