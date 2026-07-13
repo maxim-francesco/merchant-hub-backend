@@ -206,3 +206,44 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
   });
 }
 
+// ── GET /api/v1/orders/:id ───────────────────────────────────────────────────
+export async function getOrderById(req: Request, res: Response): Promise<void> {
+  const tenantId = req.tenantId!; // guaranteed by tenantContext middleware
+  const { id } = req.params;
+
+  if (!id || typeof id !== 'string') {
+    throw new AppError(400, 'INVALID_ORDER_ID', 'Invalid order ID parameter.');
+  }
+
+  const order = await prisma.order.findFirst({
+    where: {
+      id,
+      tenantId,
+    },
+    include: {
+      items: {
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              price: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!order) {
+    throw new AppError(404, 'ORDER_NOT_FOUND', 'Order not found.');
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: { order },
+  });
+}
+
+

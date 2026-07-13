@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware';
 import { tenantContext } from '../middlewares/tenantContext';
 import { requireMembership } from '../middlewares/requireMembership';
-import { getOrders, createOrder, updateOrderStatus } from '../controllers/orderController';
+import { getOrders, createOrder, updateOrderStatus, getOrderById } from '../controllers/orderController';
 import { downloadInvoice } from '../controllers/invoiceController';
 
 const router = Router();
@@ -23,5 +23,8 @@ router.patch('/:id/status', updateOrderStatus);
 
 // GET /api/v1/orders/:id/invoice — Download order PDF invoice
 router.get('/:id/invoice', downloadInvoice);
+
+// GET /api/v1/orders/:id — Retrieve order by ID
+router.get('/:id', getOrderById);
 
 export default router;
