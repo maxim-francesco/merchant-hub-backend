@@ -1,8 +1,10 @@
 import 'dotenv/config';
 import express from 'express'; // restarted for prisma client reload
 import cors from 'cors';
+import helmet from 'helmet';
 
 import { errorHandler } from './middlewares/errorHandler';
+import { globalLimiter } from './middlewares/rateLimit';
 import tenantRoutes from './routes/tenantRoutes';
 import authRoutes from './routes/authRoutes';
 import catalogRoutes from './routes/catalogRoutes';
@@ -15,11 +17,21 @@ import mediaRoutes from './routes/mediaRoutes';
 
 const app = express();
 
+if (process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
+
+// Place helmet as one of the very first middlewares
+app.use(helmet());
+
 // ── Global middlewares ───────────────────────────────────────────────────────
 app.use(cors());
 
-// Mount raw body webhook routes before parsing JSON globally
+// Mount raw body webhook routes before parsing JSON globally and before global rate limiting
 app.use('/api/v1/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+
+// Apply global rate limiting for all subsequent JSON/API routes
+app.use(globalLimiter);
 
 app.use(express.json());
 
@@ -43,3 +55,4 @@ app.use('/api/v1/media', mediaRoutes);
 app.use(errorHandler);
 
 export default app;
+

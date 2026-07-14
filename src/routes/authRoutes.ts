@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { login, getMyTenants, getMe } from '../controllers/authController';
 import { authMiddleware } from '../middlewares/authMiddleware';
+import { loginLimiter } from '../middlewares/rateLimit';
 
 const router = Router();
 
 // POST /api/v1/auth/login — Authenticate a user and return a JWT
-router.post('/login', login);
+router.post('/login', loginLimiter, login);
 
 // GET /api/v1/auth/me — Fetch current logged-in user profile
 router.get('/me', authMiddleware, getMe);
@@ -14,4 +15,5 @@ router.get('/me', authMiddleware, getMe);
 router.get('/me/tenants', authMiddleware, getMyTenants);
 
 export default router;
+
 
