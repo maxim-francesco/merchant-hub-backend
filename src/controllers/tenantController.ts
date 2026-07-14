@@ -2,6 +2,7 @@ import { prisma } from '../utils/prismaClient';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { SETTINGS_KEYS } from '../constants/settingsKeys';
+import { maskTenant } from '../serializers/tenantSerializer';
 
 // ── GET /api/v1/tenants/current ──────────────────────────────────────────────
 
@@ -33,30 +34,7 @@ export async function getCurrentTenant(req: Request, res: Response): Promise<voi
   }
 }
 
-function maskTenant(tenant: any) {
-  if (!tenant || !tenant.settings) return tenant;
 
-  const settings = { ...tenant.settings };
-  const stripeSecretKey = settings[SETTINGS_KEYS.STRIPE_SECRET_KEY];
-  const stripeWebhookSecret = settings[SETTINGS_KEYS.STRIPE_WEBHOOK_SECRET];
-
-  settings.stripeSecretKeyLast4 = stripeSecretKey && stripeSecretKey.length > 4
-    ? stripeSecretKey.slice(-4)
-    : null;
-
-  settings.stripeWebhookSecretLast4 = stripeWebhookSecret && stripeWebhookSecret.length > 4
-    ? stripeWebhookSecret.slice(-4)
-    : null;
-
-  delete settings[SETTINGS_KEYS.STRIPE_SECRET_KEY];
-  delete settings[SETTINGS_KEYS.STRIPE_WEBHOOK_SECRET];
-  delete settings.paymentGatewayApiKey;
-
-  return {
-    ...tenant,
-    settings,
-  };
-}
 
 // ── PUT /api/v1/tenants/current ──────────────────────────────────────────────
 const updateTenantSchema = z.object({

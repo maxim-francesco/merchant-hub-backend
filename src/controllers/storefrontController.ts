@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { prisma } from '../utils/prismaClient';
+import { toPublicStorefrontTenant } from '../serializers/tenantSerializer';
 import { checkoutSchema } from '../validation/orderSchemas';
 import { AppError } from '../utils/AppError';
 import { getPublicBaseUrl } from '../utils/getPublicBaseUrl';
@@ -269,7 +270,7 @@ export async function resolveTenantBySlug(req: Request, res: Response): Promise<
 
     res.status(200).json({
       status: 'success',
-      data: { tenant },
+      data: { tenant: toPublicStorefrontTenant(tenant) },
     });
   } catch (error: any) {
     res.status(500).json({

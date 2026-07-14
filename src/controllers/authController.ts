@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../utils/prismaClient';
+import { maskTenant } from '../serializers/tenantSerializer';
 
 // ── Validation schema ────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ export async function getMyTenants(req: Request, res: Response): Promise<void> {
       },
     });
 
-    const tenants = memberships.map((m) => m.tenant);
+    const tenants = memberships.map((m) => maskTenant(m.tenant));
 
     res.status(200).json({
       status: 'success',
