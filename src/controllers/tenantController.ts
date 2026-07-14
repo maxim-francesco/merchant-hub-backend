@@ -3,39 +3,8 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { SETTINGS_KEYS } from '../constants/settingsKeys';
 
-const createTenantSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  slug: z
-    .string()
-    .min(1, 'Slug is required')
-    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens only'),
-});
-
-export async function createTenant(req: Request, res: Response): Promise<void> {
-  const parsed = createTenantSchema.safeParse(req.body);
-
-  if (!parsed.success) {
-    res.status(400).json({
-      status: 'error',
-      message: 'Validation failed',
-      errors: parsed.error.flatten().fieldErrors,
-    });
-    return;
-  }
-
-  const { name, slug } = parsed.data;
-
-  const tenant = await prisma.tenant.create({
-    data: { name, slug },
-  });
-
-  res.status(201).json({
-    status: 'success',
-    data: tenant,
-  });
-}
-
 // ── GET /api/v1/tenants/current ──────────────────────────────────────────────
+
 export async function getCurrentTenant(req: Request, res: Response): Promise<void> {
   const tenantId = req.tenantId!; // guaranteed by tenantContext middleware
 

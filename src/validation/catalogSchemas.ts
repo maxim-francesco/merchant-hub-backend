@@ -77,6 +77,12 @@ export const expectedAttributesSchema = z.array(
     return result;
   });
 
+export const stockSchema = z.coerce.number()
+  .int('Stock must be an integer.')
+  .min(0, 'Stock cannot be negative.')
+  .max(1_000_000, 'Stock cannot exceed 1,000,000.')
+  .default(0);
+
 export const createCategorySchema = z.object({
   name: nameSchema,
   expectedAttributes: expectedAttributesSchema,
@@ -88,6 +94,7 @@ export const createProductSchema = z.object({
   name: nameSchema,
   price: priceSchema,
   categoryId: z.string().uuid('Category ID must be a valid UUID.'),
+  stock: stockSchema,
   attributes: attributesSchema,
 });
 

@@ -46,6 +46,7 @@ export async function getPublicProducts(req: Request, res: Response): Promise<vo
         name: true,
         slug: true,
         price: true,
+        stock: true,
         attributes: true,
         category: {
           select: {
@@ -139,6 +140,15 @@ export async function processCheckout(req: Request, res: Response): Promise<void
           400,
           'INVALID_QUANTITY',
           `Invalid quantity for product: ${product.name}.`
+        );
+      }
+
+      // Soft check at storefront checkout: reject if requested quantity exceeds current stock
+      if (product.stock < qty) {
+        throw new AppError(
+          409,
+          'INSUFFICIENT_STOCK',
+          'Insufficient stock for one or more products.'
         );
       }
 

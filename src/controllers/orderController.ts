@@ -5,6 +5,7 @@ import { AppError } from '../utils/AppError';
 import { z } from 'zod';
 import { ORDER_STATUSES, ALLOWED_TRANSITIONS, EDITABLE_STATUSES } from '../constants/orderStatus';
 import type { OrderStatus } from '../constants/orderStatus';
+import { decrementStockForOrder, restockForOrder } from '../utils/stockOps';
 
 // ── GET /api/v1/orders ────────────────────────────────────────────────────────
 export async function getOrders(req: Request, res: Response): Promise<void> {
@@ -101,6 +102,8 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     }
 
     // 3. Create the Order with nested OrderItems
+    // Note: Admin orders are created as PENDING with stockDecremented=false.
+    // No stock decrement happens at creation; it is deferred until status transition to PAID.
     const createdOrder = await tx.order.create({
       data: {
         tenantId,
@@ -197,24 +200,82 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
     );
   }
 
-  // 2. Update status and fetch matching products for return data
-  const updatedOrder = await prisma.order.update({
-    where: { id },
-    data: { status },
-    include: {
-      items: {
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              price: true,
+  // 2. Update status and handle stock transitions atomically inside a transaction
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    // If transitioning INTO PAID (and it hasn't been decremented yet)
+    if (requestedStatus === 'PAID') {
+      if (!order.stockDecremented) {
+        await decrementStockForOrder(tx, order);
+        return await tx.order.update({
+          where: { id },
+          data: {
+            status: requestedStatus,
+            stockDecremented: true,
+          },
+          include: {
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    price: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+    }
+    // If transitioning INTO CANCELLED (and it has previously decremented stock)
+    else if (requestedStatus === 'CANCELLED') {
+      if (order.stockDecremented) {
+        await restockForOrder(tx, order);
+        return await tx.order.update({
+          where: { id },
+          data: {
+            status: requestedStatus,
+            stockDecremented: false,
+          },
+          include: {
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    price: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+    }
+
+    // Default transition (e.g. SHIPPED, DELIVERED, or other statuses that do not alter stock)
+    return await tx.order.update({
+      where: { id },
+      data: { status: requestedStatus },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                price: true,
+              },
             },
           },
         },
       },
-    },
+    });
   });
 
   res.status(200).json({
@@ -285,6 +346,8 @@ export async function updateOrder(req: Request, res: Response): Promise<void> {
   }
 
   // 2. Gate: if order status not in EDITABLE_STATUSES
+  // Note: Only PENDING orders are editable. Since PENDING orders have not decremented stock,
+  // editing the order items here does not require any stock adjustments.
   if (!EDITABLE_STATUSES.includes(order.status as OrderStatus)) {
     throw new AppError(
       409,

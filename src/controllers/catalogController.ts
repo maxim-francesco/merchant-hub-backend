@@ -56,6 +56,7 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
       name: true,
       slug: true,
       price: true,
+      stock: true,
       attributes: true,
       createdAt: true,
       category: {
@@ -84,7 +85,12 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const { name, price, categoryId, attributes } = parsed.data;
+  const { name, price, categoryId, stock, attributes } = parsed.data;
+
+  // Clean up stock key from attributes if present to ensure single source of truth
+  if (attributes && typeof attributes === 'object') {
+    delete (attributes as any).stock;
+  }
 
   // Verify category exists and belongs to active tenant
   const category = await prisma.category.findFirst({
@@ -114,6 +120,7 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
           name,
           slug,
           price, // validated string passed directly to Prisma Decimal
+          stock,
           attributes,
         },
         select: {
@@ -121,6 +128,7 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
           name: true,
           slug: true,
           price: true,
+          stock: true,
           attributes: true,
           createdAt: true,
           category: {
@@ -308,7 +316,12 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const { name, price, categoryId, attributes } = parsed.data;
+  const { name, price, categoryId, stock, attributes } = parsed.data;
+
+  // Clean up stock key from attributes if present to ensure single source of truth
+  if (attributes && typeof attributes === 'object') {
+    delete (attributes as any).stock;
+  }
 
   // Verify product exists and belongs to tenant
   const existing = await prisma.product.findFirst({
@@ -346,6 +359,7 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
       categoryId,
       name,
       price, // validated string passed directly to Prisma Decimal
+      stock,
       attributes,
     },
     select: {
@@ -353,6 +367,7 @@ export async function updateProduct(req: Request, res: Response): Promise<void> 
       name: true,
       slug: true,
       price: true,
+      stock: true,
       attributes: true,
       createdAt: true,
       category: {

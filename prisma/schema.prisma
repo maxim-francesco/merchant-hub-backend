@@ -61,6 +61,7 @@ model Product {
   name       String
   slug       String
   price      Decimal  @db.Decimal(10, 2)
+  stock      Int      @default(0)
   attributes Json     // Dynamic custom attributes via JSONB
   
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -75,22 +76,23 @@ model Product {
 
 
 model Order {
-  id            String      @id @default(uuid())
-  tenantId      String
-  customerName  String
-  customerEmail String
-  totalAmount   Decimal     @db.Decimal(10, 2)
-  status        String      @default("PENDING") // PENDING, PAID, SHIPPED, CANCELLED
-  customerType  String      @default("B2C")
-  companyName   String?
-  cui           String?
-  regCom        String?
-  items         OrderItem[]
+  id               String      @id @default(uuid())
+  tenantId         String
+  customerName     String
+  customerEmail    String
+  totalAmount      Decimal     @db.Decimal(10, 2)
+  status           String      @default("PENDING") // PENDING, PAID, SHIPPED, CANCELLED
+  customerType     String      @default("B2C")
+  companyName      String?
+  cui              String?
+  regCom           String?
+  stockDecremented Boolean     @default(false)
+  items            OrderItem[]
   
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant           Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 }
 
 model OrderItem {

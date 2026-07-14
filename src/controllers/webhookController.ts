@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import { prisma } from '../utils/prismaClient';
 import { generateInvoiceBuffer } from '../utils/pdfGenerator';
 import { sendReceiptEmail } from '../utils/mailer';
+import { AppError } from '../utils/AppError';
+import { decrementStockForOrder } from '../utils/stockOps';
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const { tenantId } = req.params;
@@ -97,33 +99,82 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
       const orderId = session.client_reference_id;
 
       if (orderId) {
-        // Update order status to PAID and fetch the full order details (items and products)
-        const order = await prisma.order.update({
-          where: { id: orderId },
-          data: { status: 'PAID' },
-          include: {
-            items: {
-              include: {
-                product: {
-                  select: {
-                    name: true,
+        try {
+          // Perform state transition and stock decrement inside a transaction
+          const order = await prisma.$transaction(async (tx) => {
+            const existingOrder = await tx.order.findUnique({
+              where: { id: orderId },
+            });
+
+            if (!existingOrder) {
+              throw new AppError(404, 'ORDER_NOT_FOUND', `Order ${orderId} not found.`);
+            }
+
+            if (!existingOrder.stockDecremented) {
+              // 1. Decrement stock atomically (will throw AppError if insufficient)
+              await decrementStockForOrder(tx, existingOrder);
+
+              // 2. Mark order as PAID and set stockDecremented to true
+              return await tx.order.update({
+                where: { id: orderId },
+                data: {
+                  status: 'PAID',
+                  stockDecremented: true,
+                },
+                include: {
+                  items: {
+                    include: {
+                      product: {
+                        select: {
+                          name: true,
+                        },
+                      },
+                    },
                   },
                 },
-              },
-            },
-          },
-        });
-        console.log(`[Webhook] Order ${orderId} successfully marked as PAID for tenant ${tenantId}.`);
+              });
+            } else {
+              // Idempotent webhook retry: order already decremented and marked paid
+              return await tx.order.findUnique({
+                where: { id: orderId },
+                include: {
+                  items: {
+                    include: {
+                      product: {
+                        select: {
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              }) as any;
+            }
+          });
 
-        try {
-          // Generate PDF invoice buffer
-          const pdfBuffer = await generateInvoiceBuffer(order, tenant);
+          console.log(`[Webhook] Order ${orderId} successfully processed (PAID/stockDecremented) for tenant ${tenantId}.`);
 
-          // Send automated receipt email with the invoice attached
-          await sendReceiptEmail(order.customerEmail, order, tenant, pdfBuffer);
-          console.log(`[Webhook] Invoice receipt successfully sent/logged for order ${orderId}.`);
-        } catch (emailErr: any) {
-          console.error(`[Webhook] Failed to send receipt email for order ${orderId}:`, emailErr.message || emailErr);
+          try {
+            // Generate PDF invoice buffer
+            const pdfBuffer = await generateInvoiceBuffer(order, tenant);
+
+            // Send automated receipt email with the invoice attached
+            await sendReceiptEmail(order.customerEmail, order, tenant, pdfBuffer);
+            console.log(`[Webhook] Invoice receipt successfully sent/logged for order ${orderId}.`);
+          } catch (emailErr: any) {
+            console.error(`[Webhook] Failed to send receipt email for order ${orderId}:`, emailErr.message || emailErr);
+          }
+        } catch (txErr: any) {
+          if (txErr instanceof AppError && txErr.code === 'INSUFFICIENT_STOCK') {
+            console.error(`[Webhook] Stock decrement failed for order ${orderId}: ${txErr.message}`);
+            res.status(409).json({
+              status: 'error',
+              code: 'INSUFFICIENT_STOCK',
+              message: txErr.message,
+            });
+            return;
+          }
+          throw txErr;
         }
       } else {
         console.warn('[Webhook] checkout.session.completed missing client_reference_id.');
