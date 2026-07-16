@@ -45,8 +45,18 @@ export function generateInvoiceBuffer(order: any, tenant: any): Promise<Buffer> 
       // ── Client / Customer Details ─────────────────────────────────────────────
       doc.fontSize(10).font('Helvetica-Bold').fillColor('#1c1917').text('BILL TO', 50, 140);
       doc.font('Helvetica').fillColor('#44403c');
-      doc.text(order.customerName, 50, 155);
-      doc.text(order.customerEmail, 50, 168);
+      let clientY = 155;
+      doc.text(order.customerName, 50, clientY);
+      clientY += 13;
+      doc.text(order.customerEmail, 50, clientY);
+      if (order.phone) {
+        clientY += 13;
+        doc.text(order.phone, 50, clientY);
+      }
+      if (order.deliveryAddress) {
+        clientY += 13;
+        doc.text(order.deliveryAddress, 50, clientY);
+      }
 
       // ── Table Section ─────────────────────────────────────────────────────────
       const tableTop = 210;

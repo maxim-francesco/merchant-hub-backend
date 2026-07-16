@@ -93,7 +93,7 @@ export async function processCheckout(req: Request, res: Response): Promise<void
     return;
   }
 
-  const { customerName, customerEmail, items, customerType, companyName, cui, regCom } = parsed.data;
+  const { customerName, customerEmail, items, customerType, companyName, cui, regCom, phone, deliveryAddress } = parsed.data;
 
   // 1. Fetch Tenant to verify Stripe payment settings
   const tenant = await prisma.tenant.findUnique({
@@ -169,6 +169,8 @@ export async function processCheckout(req: Request, res: Response): Promise<void
         tenantId,
         customerName,
         customerEmail,
+        phone,
+        deliveryAddress,
         totalAmount: calculatedTotal,
         status: 'PENDING',
         customerType,

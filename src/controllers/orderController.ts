@@ -53,7 +53,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { customerName, customerEmail, items, customerType, companyName, cui, regCom } = parsed.data;
+  const { customerName, customerEmail, items, customerType, companyName, cui, regCom, phone, deliveryAddress } = parsed.data;
 
   // Execute everything in a safe database transaction
   const result = await prisma.$transaction(async (tx) => {
@@ -109,6 +109,8 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         tenantId,
         customerName,
         customerEmail,
+        phone,
+        deliveryAddress,
         totalAmount: calculatedTotal,
         customerType,
         companyName: customerType === 'B2B' ? (companyName || null) : null,
@@ -370,7 +372,7 @@ export async function updateOrder(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { customerName, customerEmail, items, customerType, companyName, cui, regCom } = parsed.data;
+  const { customerName, customerEmail, items, customerType, companyName, cui, regCom, phone, deliveryAddress } = parsed.data;
 
   // Execute updates in a database transaction
   const result = await prisma.$transaction(async (tx) => {
@@ -429,6 +431,8 @@ export async function updateOrder(req: Request, res: Response): Promise<void> {
       data: {
         customerName,
         customerEmail,
+        phone,
+        deliveryAddress,
         totalAmount: calculatedTotal,
         customerType,
         companyName: customerType === 'B2B' ? (companyName || null) : null,

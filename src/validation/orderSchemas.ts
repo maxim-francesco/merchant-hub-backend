@@ -42,6 +42,27 @@ export const regComSchema = z.string()
   .max(30, 'Registration Number must be at most 30 characters long.')
   .optional();
 
+export const phoneSchema = z.string()
+  .trim()
+  .min(7, 'Phone number is too short.')
+  .max(30, 'Phone number is too long.')
+  .regex(/^[0-9+()\s-]+$/, 'Phone number contains invalid characters.');
+
+export const deliveryAddressSchema = z.string()
+  .trim()
+  .min(5, 'Delivery address is too short.')
+  .max(250, 'Delivery address is too long.');
+
+const optionalPhone = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+  phoneSchema.optional()
+);
+
+const optionalDeliveryAddress = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+  deliveryAddressSchema.optional()
+);
+
 export const createOrderSchema = z.object({
   customerName: customerNameSchema,
   customerEmail: emailSchema,
@@ -50,6 +71,47 @@ export const createOrderSchema = z.object({
   companyName: companyNameSchema,
   cui: cuiSchema,
   regCom: regComSchema,
+  phone: phoneSchema,
+  deliveryAddress: deliveryAddressSchema,
+}).superRefine((data, ctx) => {
+  if (data.customerType === 'B2B') {
+    if (!data.companyName || data.companyName.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Company name is required for B2B orders.',
+        path: ['companyName'],
+      });
+    }
+    if (!data.cui || data.cui.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CUI is required for B2B orders.',
+        path: ['cui'],
+      });
+    }
+  }
+}).transform((data) => {
+  if (data.customerType === 'B2C') {
+    return {
+      ...data,
+      companyName: undefined,
+      cui: undefined,
+      regCom: undefined,
+    };
+  }
+  return data;
+});
+
+export const editOrderSchema = z.object({
+  customerName: customerNameSchema,
+  customerEmail: emailSchema,
+  items: itemsSchema,
+  customerType: customerTypeSchema,
+  companyName: companyNameSchema,
+  cui: cuiSchema,
+  regCom: regComSchema,
+  phone: optionalPhone,
+  deliveryAddress: optionalDeliveryAddress,
 }).superRefine((data, ctx) => {
   if (data.customerType === 'B2B') {
     if (!data.companyName || data.companyName.trim() === '') {
@@ -80,6 +142,5 @@ export const createOrderSchema = z.object({
 });
 
 export const checkoutSchema = createOrderSchema;
-export const editOrderSchema = createOrderSchema;
 
 
