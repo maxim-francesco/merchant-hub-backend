@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
+import { seedCoanaAna } from './seedCoanaAna';
+
 
 const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
 const adapter = new PrismaPg(pool);
@@ -154,6 +156,11 @@ async function main() {
   );
 
   products.forEach((p) => console.log(`   ✓ Product: ${p.name} ($${p.price})`));
+
+  // Restoring Coana Ana tenant data intentionally baked into the local dev seed.
+  // This ensures the Coana Ana storefront is preserved during a database reset/reseed.
+  const coana = await seedCoanaAna(prisma);
+  console.log(`   ✓ Coana Ana restored (tenant id: ${coana.tenantId}) — owner contact@coanaana.ro`);
 
   console.log('\n✅ Seeding complete!\n');
   console.log('─────────────────────────────────────────────');
