@@ -2,7 +2,18 @@ import { Router } from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware';
 import { tenantContext } from '../middlewares/tenantContext';
 import { requireMembership } from '../middlewares/requireMembership';
-import { getCategories, getProducts, createProduct, createCategory, updateCategory, deleteCategory, updateProduct, deleteProduct } from '../controllers/catalogController';
+import {
+  getCategories,
+  getProducts,
+  createProduct,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  updateProduct,
+  deleteProduct,
+  updateProductStock,
+} from '../controllers/catalogController';
+import { requireRole, PRIVILEGED } from '../middlewares/requireRole';
 
 const router = Router();
 
@@ -18,24 +29,27 @@ router.use(requireMembership);
 router.get('/categories', getCategories);
 
 // POST /api/v1/catalog/categories
-router.post('/categories', createCategory);
+router.post('/categories', requireRole(...PRIVILEGED), createCategory);
 
 // PUT /api/v1/catalog/categories/:id
-router.put('/categories/:id', updateCategory);
+router.put('/categories/:id', requireRole(...PRIVILEGED), updateCategory);
 
 // DELETE /api/v1/catalog/categories/:id
-router.delete('/categories/:id', deleteCategory);
+router.delete('/categories/:id', requireRole(...PRIVILEGED), deleteCategory);
 
 // GET /api/v1/catalog/products
 router.get('/products', getProducts);
 
 // POST /api/v1/catalog/products
-router.post('/products', createProduct);
+router.post('/products', requireRole(...PRIVILEGED), createProduct);
 
 // PUT /api/v1/catalog/products/:id
-router.put('/products/:id', updateProduct);
+router.put('/products/:id', requireRole(...PRIVILEGED), updateProduct);
+
+// PATCH /api/v1/catalog/products/:id/stock
+router.patch('/products/:id/stock', updateProductStock);
 
 // DELETE /api/v1/catalog/products/:id
-router.delete('/products/:id', deleteProduct);
+router.delete('/products/:id', requireRole(...PRIVILEGED), deleteProduct);
 
 export default router;

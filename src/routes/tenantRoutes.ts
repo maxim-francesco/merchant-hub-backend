@@ -3,6 +3,7 @@ import { getCurrentTenant, updateCurrentTenant } from '../controllers/tenantCont
 import { authMiddleware } from '../middlewares/authMiddleware';
 import { tenantContext } from '../middlewares/tenantContext';
 import { requireMembership } from '../middlewares/requireMembership';
+import { requireRole, PRIVILEGED } from '../middlewares/requireRole';
 
 const router = Router();
 
@@ -11,6 +12,6 @@ const router = Router();
 router.get('/current', authMiddleware, tenantContext, requireMembership, getCurrentTenant);
 
 // PUT /api/v1/tenants/current — Update current tenant settings
-router.put('/current', authMiddleware, tenantContext, requireMembership, updateCurrentTenant);
+router.put('/current', authMiddleware, tenantContext, requireMembership, requireRole(...PRIVILEGED), updateCurrentTenant);
 
 export default router;

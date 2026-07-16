@@ -7,6 +7,7 @@ import {
   updateCategorySchema,
   createProductSchema,
   updateProductSchema,
+  stockSchema,
 } from '../validation/catalogSchemas';
 import { z } from 'zod';
 
@@ -426,3 +427,62 @@ export async function deleteProduct(req: Request, res: Response): Promise<void> 
     message: 'Product deleted successfully.',
   });
 }
+
+// ── PATCH /api/v1/catalog/products/:id/stock ─────────────────────────────────────
+export async function updateProductStock(req: Request, res: Response): Promise<void> {
+  const tenantId = req.tenantId!; // guaranteed by tenantContext middleware
+  const id = req.params.id as string;
+
+  const parsed = z.object({ stock: stockSchema }).safeParse(req.body);
+  if (!parsed.success) {
+    handleValidationError(parsed, res);
+    return;
+  }
+
+  const { stock } = parsed.data;
+
+  // Verify product exists and belongs to tenant
+  const existing = await prisma.product.findFirst({
+    where: { id, tenantId },
+  });
+
+  if (!existing) {
+    res.status(404).json({
+      status: 'error',
+      code: 'PRODUCT_NOT_FOUND',
+      message: 'Product not found.',
+    });
+    return;
+  }
+
+  const product = await prisma.product.update({
+    where: {
+      id,
+    },
+    data: {
+      stock,
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      price: true,
+      stock: true,
+      attributes: true,
+      createdAt: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
+    },
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: { product },
+  });
+}
+

@@ -24,7 +24,10 @@ export async function getCurrentTenant(req: Request, res: Response): Promise<voi
 
     res.status(200).json({
       status: 'success',
-      data: { tenant: maskTenant(tenant) },
+      data: {
+        tenant: maskTenant(tenant),
+        myRole: req.membershipRole,
+      },
     });
   } catch (error: any) {
     res.status(500).json({

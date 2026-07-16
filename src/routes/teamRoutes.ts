@@ -3,6 +3,7 @@ import { authMiddleware } from '../middlewares/authMiddleware';
 import { tenantContext } from '../middlewares/tenantContext';
 import { requireMembership } from '../middlewares/requireMembership';
 import { getTeamMembers, createMember, removeMember } from '../controllers/teamController';
+import { requireRole, PRIVILEGED } from '../middlewares/requireRole';
 
 const router = Router();
 
@@ -15,9 +16,9 @@ router.use(requireMembership);
 router.get('/', getTeamMembers);
 
 // POST /api/v1/team/invite — Create a new member account
-router.post('/invite', createMember);
+router.post('/invite', requireRole(...PRIVILEGED), createMember);
 
 // DELETE /api/v1/team/:id — Remove a member from the workspace
-router.delete('/:id', removeMember);
+router.delete('/:id', requireRole(...PRIVILEGED), removeMember);
 
 export default router;

@@ -4,6 +4,7 @@ import { tenantContext } from '../middlewares/tenantContext';
 import { requireMembership } from '../middlewares/requireMembership';
 import { getOrders, createOrder, updateOrderStatus, getOrderById, updateOrder } from '../controllers/orderController';
 import { downloadInvoice } from '../controllers/invoiceController';
+import { requireRole, PRIVILEGED } from '../middlewares/requireRole';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.use(requireMembership);
 router.get('/', getOrders);
 
 // POST /api/v1/orders
-router.post('/', createOrder);
+router.post('/', requireRole(...PRIVILEGED), createOrder);
 
 // PATCH /api/v1/orders/:id/status
 router.patch('/:id/status', updateOrderStatus);
@@ -25,7 +26,7 @@ router.patch('/:id/status', updateOrderStatus);
 router.get('/:id/invoice', downloadInvoice);
 
 // PUT /api/v1/orders/:id — Edit order (status-gated)
-router.put('/:id', updateOrder);
+router.put('/:id', requireRole(...PRIVILEGED), updateOrder);
 
 // GET /api/v1/orders/:id — Retrieve order by ID
 router.get('/:id', getOrderById);
