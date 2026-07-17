@@ -6,6 +6,8 @@ import { checkoutSchema } from '../validation/orderSchemas';
 import { AppError } from '../utils/AppError';
 import { getPublicBaseUrl } from '../utils/getPublicBaseUrl';
 import { SETTINGS_KEYS } from '../constants/settingsKeys';
+import { sendOrderConfirmationEmail, sendOwnerNewOrderAlert } from '../utils/mailer';
+import { generateInvoiceBuffer } from '../utils/pdfGenerator';
 
 // ── GET /api/v1/storefront/categories ────────────────────────────────────────
 export async function getPublicCategories(req: Request, res: Response): Promise<void> {
@@ -215,6 +217,35 @@ export async function processCheckout(req: Request, res: Response): Promise<void
 
   // 3. Create Stripe Checkout Session if card, otherwise complete checkout for ramburs
   if (paymentMethod === 'ramburs') {
+    try {
+      const fullOrder = await prisma.order.findUnique({
+        where: { id: createdOrder.id },
+        include: { items: { include: { product: { select: { name: true, slug: true } } } } },
+      });
+
+      if (fullOrder) {
+        const ownerMember = await prisma.tenantMember.findFirst({
+          where: { tenantId, role: 'OWNER' },
+          include: { user: true },
+        });
+        const ownerEmail = ownerMember?.user?.email;
+
+        let pdfBuffer: Buffer | undefined;
+        try {
+          pdfBuffer = await generateInvoiceBuffer(fullOrder, tenant);
+        } catch (pdfErr: any) {
+          console.error(`[Storefront Checkout] Failed to generate invoice PDF for order ${createdOrder.id}:`, pdfErr.message || pdfErr);
+        }
+
+        await sendOrderConfirmationEmail(fullOrder, tenant, { pdfBuffer });
+        if (ownerEmail) {
+          await sendOwnerNewOrderAlert(ownerEmail, fullOrder, tenant);
+        }
+      }
+    } catch (emailBlockErr: any) {
+      console.error('[Storefront Checkout] Error in email processing block:', emailBlockErr.message || emailBlockErr);
+    }
+
     res.status(201).json({
       status: 'success',
       data: {
