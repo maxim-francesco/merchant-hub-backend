@@ -5,3 +5,6 @@ dist/
 
 # discovery / screenshot scratch
 _discovery/
+
+.env.*
+*.local

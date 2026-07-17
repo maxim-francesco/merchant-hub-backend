@@ -25,7 +25,13 @@ if (process.env.TRUST_PROXY === '1') {
 app.use(helmet());
 
 // ── Global middlewares ───────────────────────────────────────────────────────
-app.use(cors());
+const allowedOrigins = [process.env.FRONTEND_URL, process.env.STOREFRONT_URL].filter(Boolean) as string[];
+app.use(
+  cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    credentials: true,
+  })
+);
 
 // Mount raw body webhook routes before parsing JSON globally and before global rate limiting
 app.use('/api/v1/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
