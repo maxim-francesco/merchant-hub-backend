@@ -93,9 +93,9 @@ export async function processCheckout(req: Request, res: Response): Promise<void
     return;
   }
 
-  const { customerName, customerEmail, items, customerType, companyName, cui, regCom, phone, deliveryAddress } = parsed.data;
+  const { customerName, customerEmail, items, customerType, companyName, cui, regCom, phone, deliveryAddress, paymentMethod } = parsed.data;
 
-  // 1. Fetch Tenant to verify Stripe payment settings
+  // 1. Fetch Tenant to verify payment settings
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
   });
@@ -107,7 +107,7 @@ export async function processCheckout(req: Request, res: Response): Promise<void
   const settings = (tenant.settings as Record<string, any>) || {};
   const stripeSecretKey = settings[SETTINGS_KEYS.STRIPE_SECRET_KEY];
 
-  if (!stripeSecretKey) {
+  if (paymentMethod === 'card' && !stripeSecretKey) {
     throw new AppError(400, 'PAYMENT_NOT_CONFIGURED', 'Store payment gateway not configured.');
   }
 
@@ -171,6 +171,7 @@ export async function processCheckout(req: Request, res: Response): Promise<void
         customerEmail,
         phone,
         deliveryAddress,
+        paymentMethod,
         totalAmount: calculatedTotal,
         status: 'PENDING',
         customerType,
@@ -187,43 +188,59 @@ export async function processCheckout(req: Request, res: Response): Promise<void
       },
     });
 
-    // Map items for Stripe
-    const lineItems = orderItemsData.map((oi) => {
-      const product = productMap.get(oi.productId)!;
-      return {
-        price_data: {
-          currency: 'ron',
-          product_data: {
-            name: product.name,
-            metadata: {
-              productId: product.id,
-              slug: product.slug,
+    // Map items for Stripe (only for card payment method)
+    let lineItems = null;
+    if (paymentMethod === 'card') {
+      lineItems = orderItemsData.map((oi) => {
+        const product = productMap.get(oi.productId)!;
+        return {
+          price_data: {
+            currency: 'ron',
+            product_data: {
+              name: product.name,
+              metadata: {
+                productId: product.id,
+                slug: product.slug,
+              },
             },
+            unit_amount: Math.round(Number(product.price) * 100), // convert to cents
           },
-          unit_amount: Math.round(Number(product.price) * 100), // convert to cents
-        },
-        quantity: oi.quantity,
-      };
-    });
+          quantity: oi.quantity,
+        };
+      });
+    }
 
     return { createdOrder: order, lineItems };
   });
 
-  // 3. Create Stripe Checkout Session (outside the transaction)
+  // 3. Create Stripe Checkout Session if card, otherwise complete checkout for ramburs
+  if (paymentMethod === 'ramburs') {
+    res.status(201).json({
+      status: 'success',
+      data: {
+        paymentMethod: 'ramburs',
+        orderId: createdOrder.id,
+        url: null,
+      },
+    });
+    return;
+  }
+
+  // Card payment path
   let sessionUrl = '';
   const base = getPublicBaseUrl();
 
-  if (stripeSecretKey.startsWith('sk_test_mock') || stripeSecretKey === 'sk_test_placeholder') {
+  if (stripeSecretKey!.startsWith('sk_test_mock') || stripeSecretKey === 'sk_test_placeholder') {
     // Simulated redirect URL for testing
     sessionUrl = `${base}/store/${tenant.slug}/success?order_id=mock_cs_${createdOrder.id}`;
   } else {
-    const stripe = new Stripe(stripeSecretKey, {
+    const stripe = new Stripe(stripeSecretKey!, {
       apiVersion: '2023-10-16' as any,
     });
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: lineItems,
+      line_items: lineItems!,
       mode: 'payment',
       client_reference_id: createdOrder.id,
       success_url: `${base}/store/${tenant.slug}/success?order_id={CHECKOUT_SESSION_ID}`,

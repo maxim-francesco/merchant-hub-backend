@@ -204,8 +204,8 @@ export async function updateOrderStatus(req: Request, res: Response): Promise<vo
 
   // 2. Update status and handle stock transitions atomically inside a transaction
   const updatedOrder = await prisma.$transaction(async (tx) => {
-    // If transitioning INTO PAID (and it hasn't been decremented yet)
-    if (requestedStatus === 'PAID') {
+    // If transitioning INTO PAID or CONFIRMED (and it hasn't been decremented yet)
+    if (requestedStatus === 'PAID' || requestedStatus === 'CONFIRMED') {
       if (!order.stockDecremented) {
         await decrementStockForOrder(tx, order);
         return await tx.order.update({

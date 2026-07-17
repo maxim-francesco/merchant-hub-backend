@@ -73,6 +73,7 @@ export const createOrderSchema = z.object({
   regCom: regComSchema,
   phone: phoneSchema,
   deliveryAddress: deliveryAddressSchema,
+  paymentMethod: z.enum(['ramburs', 'card']),
 }).superRefine((data, ctx) => {
   if (data.customerType === 'B2B') {
     if (!data.companyName || data.companyName.trim() === '') {
